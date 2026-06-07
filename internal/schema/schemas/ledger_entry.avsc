@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "LedgerEntry",
+  "namespace": "com.fintech.events",
+  "fields": [
+    {"name": "entry_id", "type": "long"},
+    {"name": "transaction_id", "type": "string"},
+    {"name": "account_id", "type": "string"},
+    {"name": "entry_type", "type": {"type": "enum", "name": "EntryType", "symbols": ["DEBIT", "CREDIT"]}},
+    {"name": "amount", "type": "double"},
+    {"name": "currency", "type": "string"},
+    {"name": "balance_after", "type": "double"},
+    {"name": "posted_at", "type": "string"},
+    {"name": "idempotency_key", "type": "string"}
+  ]
+}

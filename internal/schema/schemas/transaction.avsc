@@ -1,0 +1,20 @@
+{
+  "type": "record",
+  "name": "Transaction",
+  "namespace": "com.fintech.events",
+  "fields": [
+    {"name": "transaction_id", "type": "string"},
+    {"name": "idempotency_key", "type": "string"},
+    {"name": "transaction_type", "type": {"type": "enum", "name": "TransactionType", "symbols": ["DEPOSIT", "WITHDRAWAL", "TRANSFER", "CARD_AUTH", "ACH_DEBIT", "ACH_CREDIT"]}},
+    {"name": "status", "type": {"type": "enum", "name": "TransactionStatus", "symbols": ["PENDING", "AUTHORIZED", "SETTLED", "FAILED", "REVERSED"]}},
+    {"name": "source_account_id", "type": "string"},
+    {"name": "target_account_id", "type": ["null", "string"], "default": null},
+    {"name": "amount", "type": "double"},
+    {"name": "currency", "type": "string"},
+    {"name": "fee_amount", "type": "double", "default": 0.0},
+    {"name": "fraud_score", "type": ["null", "double"], "default": null},
+    {"name": "risk_level", "type": ["null", "string"], "default": null},
+    {"name": "initiated_at", "type": "string"},
+    {"name": "created_at", "type": "string"}
+  ]
+}

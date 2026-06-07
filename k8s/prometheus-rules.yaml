@@ -1,0 +1,121 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: fintech-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: fintech
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+  - name: fintech.rules
+    rules:
+    - alert: HighErrorRate
+      expr: |
+        sum(rate(fintech_http_requests_total{status_code=~"5.."}[5m]))
+        /
+        sum(rate(fintech_http_requests_total[5m])) > 0.05
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "High error rate on {{ $labels.service }}"
+        description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+
+    - alert: HighLatency
+      expr: |
+        histogram_quantile(0.95,
+          sum(rate(fintech_http_request_duration_seconds_bucket[5m])) by (le, service)
+        ) > 0.5
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High P95 latency on {{ $labels.service }}"
+        description: "P95 latency is {{ $value }}s (threshold: 500ms)"
+
+    - alert: KafkaConsumerLagHigh
+      expr: fintech_kafka_consumer_lag > 10000
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Kafka consumer lag high for {{ $labels.group }}"
+        description: "Consumer group {{ $labels.group }} lag is {{ $value }} on topic {{ $labels.topic }}"
+
+    - alert: KafkaConsumerLagCritical
+      expr: fintech_kafka_consumer_lag > 100000
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Kafka consumer lag critical for {{ $labels.group }}"
+        description: "Consumer group {{ $labels.group }} lag is {{ $value }} — risk of data loss"
+
+    - alert: HighTransactionFailureRate
+      expr: |
+        sum(rate(fintech_transactions_total{status="FAILED"}[5m])) by (service)
+        /
+        sum(rate(fintech_transactions_total[5m])) by (service) > 0.1
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High transaction failure rate on {{ $labels.service }}"
+        description: "Failure rate is {{ $value | humanizePercentage }}"
+
+    - alert: ServiceDown
+      expr: up{job=~"fintech-.*"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Service {{ $labels.instance }} is down"
+        description: "Service has been unreachable for over 1 minute"
+
+    - alert: HighDBQueryLatency
+      expr: |
+        histogram_quantile(0.95,
+          sum(rate(fintech_db_query_duration_seconds_bucket[5m])) by (le, operation)
+        ) > 0.2
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High DB query latency for {{ $labels.operation }}"
+        description: "P95 DB query latency is {{ $value }}s"
+
+    - alert: RedisOperationLatencyHigh
+      expr: |
+        histogram_quantile(0.95,
+          sum(rate(fintech_redis_operation_duration_seconds_bucket[5m])) by (le, operation)
+        ) > 0.05
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High Redis latency for {{ $labels.operation }}"
+        description: "P95 Redis latency is {{ $value }}s"
+
+    - alert: PodRestartLoop
+      expr: increase(kube_pod_container_status_restarts_total{namespace="fintech"}[1h]) > 5
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Pod {{ $labels.pod }} restarting frequently"
+        description: "Pod has restarted {{ $value }} times in the last hour"
+
+    - alert: HighMemoryUsage
+      expr: |
+        container_memory_usage_bytes{namespace="fintech"}
+        /
+        container_spec_memory_limit_bytes{namespace="fintech"} > 0.85
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High memory usage on {{ $labels.pod }}"
+        description: "Memory usage is {{ $value | humanizePercentage }} of limit"

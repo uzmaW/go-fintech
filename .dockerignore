@@ -1,0 +1,13 @@
+bin/
+.git/
+.github/
+k8s/
+python/
+docs/
+migrations/
+*.md
+*.yaml
+*.yml
+.env*
+Makefile
+.gitignore

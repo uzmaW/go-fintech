@@ -1,0 +1,197 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: fintech
+  namespace: argocd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  description: "Fintech transaction processing platform"
+  sourceRepos:
+  - "https://github.com/company/go-fintech.git"
+  destinations:
+  - namespace: fintech
+    server: "https://kubernetes.default.svc"
+  clusterResourceWhitelist:
+  - group: ""
+    kind: Namespace
+  namespaceResourceWhitelist:
+  - group: "*"
+    kind: "*"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: fintech-infrastructure
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: fintech
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  project: fintech
+  source:
+    repoURL: "https://github.com/company/go-fintech.git"
+    targetRevision: HEAD
+    path: k8s
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: fintech
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - CreateNamespace=true
+    - PrunePropagationPolicy=foreground
+    - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m0s
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: fintech-services
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: fintech
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  project: fintech
+  source:
+    repoURL: "https://github.com/company/go-fintech.git"
+    targetRevision: HEAD
+    path: k8s
+    directory:
+      recurse: false
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: fintech
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m0s
+  ignoreDifferences:
+  - group: apps
+    kind: Deployment
+    jsonPointers:
+    - /spec/replicas
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: api-gateway
+  namespace: fintech
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api-gateway
+  strategy:
+    canary:
+      steps:
+      - setWeight: 10
+      - pause: {duration: 2m}
+      - setWeight: 30
+      - pause: {duration: 2m}
+      - setWeight: 60
+      - pause: {duration: 2m}
+      - setWeight: 100
+      canaryService: api-gateway-canary
+      stableService: api-gateway-stable
+      trafficRouting:
+        nginx:
+          stableIngress: api-gateway-ingress
+      analysis:
+        templates:
+        - templateName: success-rate
+        startingStep: 2
+        args:
+        - name: service-name
+          value: api-gateway-canary.fintech.svc.cluster.local
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: success-rate
+  namespace: fintech
+spec:
+  args:
+  - name: service-name
+  metrics:
+  - name: success-rate
+    interval: 60s
+    count: 5
+    successCondition: result[0] >= 0.99
+    failureLimit: 3
+    provider:
+      prometheus:
+        address: http://prometheus:9090
+        query: |
+          sum(rate(http_requests_total{service="{{args.service-name}}",code=~"2.."}[5m]))
+          /
+          sum(rate(http_requests_total{service="{{args.service-name}}"}[5m]))
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: fintech
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  project: fintech
+  source:
+    repoURL: "https://github.com/prometheus-community/helm-charts.git"
+    targetRevision: main
+    chart: kube-prometheus-stack
+    helm:
+      releaseName: prometheus
+      values: |
+        grafana:
+          enabled: true
+          adminPassword: admin
+          dashboards:
+            default:
+              fintech:
+                gnetId: 0
+        prometheus:
+          prometheusSpec:
+            retention: 30d
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 50Gi
+        alertmanager:
+          enabled: true
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true

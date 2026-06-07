@@ -1,0 +1,158 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  fintech-dashboard.json: |
+    <GF_DASHBOARDS_PLACEHOLDER>
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fintech-default-deny
+  namespace: fintech
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fintech-api-gateway
+  namespace: fintech
+spec:
+  podSelector:
+    matchLabels:
+      app: api-gateway
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from: []
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 9092
+    - protocol: TCP
+      port: 6379
+    - protocol: TCP
+      port: 5432
+    - protocol: TCP
+      port: 8081
+    - protocol: TCP
+      port: 8083
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fintech-fraud-service
+  namespace: fintech
+spec:
+  podSelector:
+    matchLabels:
+      app: fraud-service
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress: []
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 9092
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fintech-authorization-service
+  namespace: fintech
+spec:
+  podSelector:
+    matchLabels:
+      app: authorization-service
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress: []
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 9092
+    - protocol: TCP
+      port: 6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fintech-ledger-processor
+  namespace: fintech
+spec:
+  podSelector:
+    matchLabels:
+      app: ledger-processor
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress: []
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 9092
+    - protocol: TCP
+      port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fintech-notification-service
+  namespace: fintech
+spec:
+  podSelector:
+    matchLabels:
+      app: notification-service
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from: []
+    ports:
+    - protocol: TCP
+      port: 8082
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 9092
+    - protocol: TCP
+      port: 6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fintech-settlement-job
+  namespace: fintech
+spec:
+  podSelector:
+    matchLabels:
+      app: settlement-job
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress: []
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 5432

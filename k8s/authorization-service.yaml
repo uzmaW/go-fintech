@@ -1,0 +1,123 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authorization-service
+  namespace: fintech
+  labels:
+    app: authorization-service
+    app.kubernetes.io/name: authorization-service
+    app.kubernetes.io/part-of: fintech
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: authorization-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: authorization-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+      containers:
+      - name: authorization-service
+        image: ghcr.io/company/go-fintech/authorization-service:latest
+        ports:
+        - name: http
+          containerPort: 8083
+        env:
+        - name: APP_NAME
+          value: "authorization-service"
+        - name: APP_PORT
+          value: "8083"
+        - name: KAFKA_BROKERS
+          valueFrom:
+            configMapKeyRef:
+              name: kafka-config
+              key: KAFKA_BROKERS
+        - name: KAFKA_CONSUMER_GROUP
+          value: "authorization-service"
+        - name: KAFKA_TOPIC_TRANSACTIONS_AUTHORIZED
+          value: "transactions.authorized"
+        - name: KAFKA_TOPIC_TRANSACTIONS_SETTLED
+          value: "transactions.settled"
+        - name: KAFKA_TOPIC_TRANSACTIONS_FAILED
+          value: "transactions.failed"
+        - name: REDIS_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: redis-config
+              key: REDIS_ADDR
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /livez
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: authorization-service
+  namespace: fintech
+  labels:
+    app: authorization-service
+spec:
+  type: ClusterIP
+  selector:
+    app: authorization-service
+  ports:
+  - name: http
+    port: 8083
+    targetPort: http
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: authorization-service
+  namespace: fintech
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: authorization-service
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: authorization-service
+  namespace: fintech
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: authorization-service
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
