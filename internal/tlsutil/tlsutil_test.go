@@ -40,10 +40,10 @@ func generateSelfSignedCert(t *testing.T) (certFile, keyFile string, cleanup fun
 		t.Fatalf("failed to create cert file: %v", err)
 	}
 	if err := pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: certDER}); err != nil {
-		certOut.Close()
+		_ = certOut.Close()
 		t.Fatalf("failed to encode cert: %v", err)
 	}
-	certOut.Close()
+	_ = certOut.Close()
 
 	keyDER, err := x509.MarshalECPrivateKey(key)
 	if err != nil {
@@ -54,14 +54,14 @@ func generateSelfSignedCert(t *testing.T) (certFile, keyFile string, cleanup fun
 		t.Fatalf("failed to create key file: %v", err)
 	}
 	if err := pem.Encode(keyOut, &pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}); err != nil {
-		keyOut.Close()
+		_ = keyOut.Close()
 		t.Fatalf("failed to encode key: %v", err)
 	}
-	keyOut.Close()
+	_ = keyOut.Close()
 
 	cleanup = func() {
-		os.Remove(certOut.Name())
-		os.Remove(keyOut.Name())
+		_ = os.Remove(certOut.Name())
+		_ = os.Remove(keyOut.Name())
 	}
 
 	return certOut.Name(), keyOut.Name(), cleanup

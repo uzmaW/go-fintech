@@ -90,7 +90,7 @@ func main() {
 		MinBytes: 10e3,
 		MaxBytes: 10e6,
 	})
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -108,7 +108,7 @@ func main() {
 		healthAddr = ":8084"
 	}
 	hs := health.New("ledger-processor", healthAddr)
-	defer hs.Shutdown(ctx)
+	defer func() { _ = hs.Shutdown(ctx) }()
 	go func() {
 		if err := hs.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Printf("Health server error: %v", err)
@@ -184,7 +184,9 @@ func main() {
 			var tx Transaction
 			if err := json.Unmarshal(msg.Value, &tx); err != nil {
 				log.Printf("Error unmarshaling: %v", err)
-				reader.CommitMessages(ctx, msg)
+				if err := reader.CommitMessages(ctx, msg); err != nil {
+				log.Printf("Error committing messages: %v", err)
+			}
 				continue
 			}
 			batch = append(batch, pendingTx{msg: msg, tx: tx})

@@ -175,7 +175,7 @@ func GenerateNetworkPolicy(name, namespace string, ingressPorts, egressPorts []i
 		sb.WriteString("      ports:\n")
 		for _, port := range ingressPorts {
 			sb.WriteString("        - protocol: TCP\n")
-			sb.WriteString(fmt.Sprintf("          port: %d\n", port))
+			fmt.Fprintf(&sb, "          port: %d\n", port)
 		}
 	}
 
@@ -192,7 +192,7 @@ func GenerateNetworkPolicy(name, namespace string, ingressPorts, egressPorts []i
 		sb.WriteString("      ports:\n")
 		for _, port := range egressPorts {
 			sb.WriteString("        - protocol: TCP\n")
-			sb.WriteString(fmt.Sprintf("          port: %d\n", port))
+			fmt.Fprintf(&sb, "          port: %d\n", port)
 		}
 	}
 

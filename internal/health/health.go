@@ -70,11 +70,15 @@ func (s *Server) handleLiveness(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if !s.healthy.Load() {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(status{Status: "DOWN"})
+		if err := json.NewEncoder(w).Encode(status{Status: "DOWN"}); err != nil {
+			http.Error(w, "encoding error", http.StatusInternalServerError)
+		}
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(status{Status: "UP", Timestamp: time.Now().UTC()})
+	if err := json.NewEncoder(w).Encode(status{Status: "UP", Timestamp: time.Now().UTC()}); err != nil {
+		http.Error(w, "encoding error", http.StatusInternalServerError)
+	}
 }
 
 func (s *Server) handleReadiness(w http.ResponseWriter, r *http.Request) {
@@ -82,7 +86,9 @@ func (s *Server) handleReadiness(w http.ResponseWriter, r *http.Request) {
 
 	if !s.ready.Load() {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(status{Status: "NOT_READY", Ready: false, Timestamp: time.Now().UTC()})
+		if err := json.NewEncoder(w).Encode(status{Status: "NOT_READY", Ready: false, Timestamp: time.Now().UTC()}); err != nil {
+			http.Error(w, "encoding error", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -111,5 +117,7 @@ func (s *Server) handleReadiness(w http.ResponseWriter, r *http.Request) {
 	if !allOK {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		http.Error(w, "encoding error", http.StatusInternalServerError)
+	}
 }

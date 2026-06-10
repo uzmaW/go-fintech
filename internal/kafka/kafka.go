@@ -108,7 +108,7 @@ func CreateTopic(brokers []string, topic string, numPartitions int, replicationF
 	if err != nil {
 		return fmt.Errorf("failed to connect to kafka: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	controller, err := conn.Controller()
 	if err != nil {
@@ -119,7 +119,7 @@ func CreateTopic(brokers []string, topic string, numPartitions int, replicationF
 	if err != nil {
 		return fmt.Errorf("failed to connect to controller: %w", err)
 	}
-	defer controllerConn.Close()
+	defer func() { _ = controllerConn.Close() }()
 
 	topicConfigs := []kafka.TopicConfig{
 		{

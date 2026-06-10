@@ -72,7 +72,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err := db.Ping(); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
@@ -133,7 +133,7 @@ func fetchAuthorizedTransactions(ctx context.Context, db *sql.DB, date time.Time
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var txns []Transaction
 	for rows.Next() {
@@ -152,7 +152,7 @@ func settleBatch(ctx context.Context, db *sql.DB, batch []Transaction) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	stmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO ledger_entries
@@ -163,7 +163,7 @@ func settleBatch(ctx context.Context, db *sql.DB, batch []Transaction) error {
 	if err != nil {
 		return err
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 
 	now := time.Now()
 

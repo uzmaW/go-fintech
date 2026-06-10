@@ -89,7 +89,7 @@ func (p *Pool) BatchInsertLedgerEntries(ctx context.Context, entries []LedgerEnt
 	}
 
 	br := p.pool.SendBatch(ctx, batch)
-	defer br.Close()
+	defer func() { _ = br.Close() }()
 
 	_, err := br.Exec()
 	return err
@@ -112,7 +112,7 @@ func (p *Pool) BatchInsertTransactions(ctx context.Context, txs []Transaction) e
 	}
 
 	br := p.pool.SendBatch(ctx, batch)
-	defer br.Close()
+	defer func() { _ = br.Close() }()
 
 	_, err := br.Exec()
 	return err

@@ -84,7 +84,7 @@ func main() {
 		BatchSize:    serviceConfig.Kafka.Producer.BatchSize,
 		BatchTimeout: time.Duration(serviceConfig.Kafka.Producer.LingerMs) * time.Millisecond,
 	}
-	defer producer.Close()
+	defer func() { _ = producer.Close() }()
 
 	m := metrics.New("api-gateway")
 

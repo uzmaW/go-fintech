@@ -95,34 +95,34 @@ func main() {
 		MinBytes: 10e3,
 		MaxBytes: 10e6,
 	})
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	authorizedWriter := &kafka.Writer{
 		Addr:     kafka.TCP(cfg.Kafka.Brokers...),
 		Topic:    cfg.Kafka.Topics.TransactionsAuthorized,
 		Balancer: &kafka.Hash{},
 	}
-	defer authorizedWriter.Close()
+	defer func() { _ = authorizedWriter.Close() }()
 
 	failedWriter := &kafka.Writer{
 		Addr:     kafka.TCP(cfg.Kafka.Brokers...),
 		Topic:    cfg.Kafka.Topics.TransactionsFailed,
 		Balancer: &kafka.Hash{},
 	}
-	defer failedWriter.Close()
+	defer func() { _ = failedWriter.Close() }()
 
 	fraudWriter := &kafka.Writer{
 		Addr:     kafka.TCP(cfg.Kafka.Brokers...),
 		Topic:    cfg.Kafka.Topics.FraudEvents,
 		Balancer: &kafka.Hash{},
 	}
-	defer fraudWriter.Close()
+	defer func() { _ = fraudWriter.Close() }()
 
 	if cfg.App.Port == 0 {
 		cfg.App.Port = 8081
 	}
 	healthSrv := health.New("fraud-service", fmt.Sprintf(":%d", cfg.App.Port))
-	defer healthSrv.Shutdown(ctx)
+	defer func() { _ = healthSrv.Shutdown(ctx) }()
 	go func() {
 		if err := healthSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("Health server error: %v", err)
@@ -153,7 +153,9 @@ func main() {
 		var tx Transaction
 		if err := json.Unmarshal(msg.Value, &tx); err != nil {
 			log.Printf("Error unmarshaling transaction: %v", err)
-			reader.CommitMessages(ctx, msg)
+			if err := reader.CommitMessages(ctx, msg); err != nil {
+				log.Printf("Error committing messages: %v", err)
+			}
 			continue
 		}
 

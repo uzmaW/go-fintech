@@ -68,7 +68,7 @@ func main() {
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
 	})
-	defer redisClient.Close()
+	defer func() { _ = redisClient.Close() }()
 
 	if err := redisClient.Ping(ctx).Err(); err != nil {
 		log.Printf("Warning: Redis not available: %v", err)
@@ -81,21 +81,21 @@ func main() {
 		MinBytes: 10e3,
 		MaxBytes: 10e6,
 	})
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	sentWriter := &kafka.Writer{
 		Addr:     kafka.TCP(cfg.Kafka.Brokers...),
 		Topic:    cfg.Kafka.Topics.NotificationsSent,
 		Balancer: &kafka.Hash{},
 	}
-	defer sentWriter.Close()
+	defer func() { _ = sentWriter.Close() }()
 
 	failedWriter := &kafka.Writer{
 		Addr:     kafka.TCP(cfg.Kafka.Brokers...),
 		Topic:    cfg.Kafka.Topics.NotificationsFailed,
 		Balancer: &kafka.Hash{},
 	}
-	defer failedWriter.Close()
+	defer func() { _ = failedWriter.Close() }()
 
 	writer := sentWriter
 
@@ -170,7 +170,9 @@ func processNotifications(ctx context.Context, reader *kafka.Reader, sentWriter,
 		var notif NotificationMessage
 		if err := json.Unmarshal(msg.Value, &notif); err != nil {
 			log.Printf("Error unmarshaling: %v", err)
-			reader.CommitMessages(ctx, msg)
+			if err := reader.CommitMessages(ctx, msg); err != nil {
+				log.Printf("Error committing messages: %v", err)
+			}
 			continue
 		}
 
@@ -181,7 +183,9 @@ func processNotifications(ctx context.Context, reader *kafka.Reader, sentWriter,
 			publishResult(ctx, sentWriter, &notif, "")
 		}
 
-		reader.CommitMessages(ctx, msg)
+		if err := reader.CommitMessages(ctx, msg); err != nil {
+			log.Printf("Error committing messages: %v", err)
+		}
 	}
 }
 

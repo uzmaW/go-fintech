@@ -85,7 +85,7 @@ func TestLoadSchemasFromDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	schemaContent := `{"type":"record","name":"Payment","namespace":"fintech","fields":[{"name":"id","type":"int"}]}`
 	if err := os.WriteFile(filepath.Join(tmpDir, "payment.avsc"), []byte(schemaContent), 0644); err != nil {

@@ -87,7 +87,7 @@ func main() {
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
 	})
-	defer redisClient.Close()
+	defer func() { _ = redisClient.Close() }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -111,28 +111,28 @@ func main() {
 		MinBytes: 10e3,
 		MaxBytes: 10e6,
 	})
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	settledWriter := &kafka.Writer{
 		Addr:     kafka.TCP(cfg.Kafka.Brokers...),
 		Topic:    cfg.Kafka.Topics.TransactionsSettled,
 		Balancer: &kafka.Hash{},
 	}
-	defer settledWriter.Close()
+	defer func() { _ = settledWriter.Close() }()
 
 	failedWriter := &kafka.Writer{
 		Addr:     kafka.TCP(cfg.Kafka.Brokers...),
 		Topic:    cfg.Kafka.Topics.TransactionsFailed,
 		Balancer: &kafka.Hash{},
 	}
-	defer failedWriter.Close()
+	defer func() { _ = failedWriter.Close() }()
 
 	addr := fmt.Sprintf(":%d", cfg.App.Port)
 	if cfg.App.Port == 0 {
 		addr = ":8083"
 	}
 	srv := health.New("authorization-service", addr)
-	defer srv.Shutdown(ctx)
+	defer func() { _ = srv.Shutdown(ctx) }()
 	go func() {
 		log.Printf("Health server listening on %s", addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -164,7 +164,9 @@ func main() {
 		var authMsg AuthorizationMessage
 		if err := json.Unmarshal(msg.Value, &authMsg); err != nil {
 			log.Printf("Error unmarshaling: %v", err)
-			reader.CommitMessages(ctx, msg)
+			if err := reader.CommitMessages(ctx, msg); err != nil {
+				log.Printf("Error committing messages: %v", err)
+			}
 			continue
 		}
 
@@ -176,7 +178,9 @@ func main() {
 			produceFailed(ctx, failedWriter, &authMsg.Transaction, result.Reason)
 		}
 
-		reader.CommitMessages(ctx, msg)
+		if err := reader.CommitMessages(ctx, msg); err != nil {
+			log.Printf("Error committing messages: %v", err)
+		}
 	}
 }
 
