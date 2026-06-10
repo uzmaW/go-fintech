@@ -172,10 +172,16 @@ func main() {
 
 		result := authorizeTransaction(ctx, &authMsg.Transaction)
 
+		var produceErr error
 		if result.Approved {
-			produceSettled(ctx, settledWriter, &authMsg.Transaction)
+			produceErr = produceSettled(ctx, settledWriter, &authMsg.Transaction)
 		} else {
-			produceFailed(ctx, failedWriter, &authMsg.Transaction, result.Reason)
+			produceErr = produceFailed(ctx, failedWriter, &authMsg.Transaction, result.Reason)
+		}
+
+		if produceErr != nil {
+			log.Printf("Failed to produce result for %s, skipping commit: %v", authMsg.Transaction.TransactionID, produceErr)
+			continue
 		}
 
 		if err := reader.CommitMessages(ctx, msg); err != nil {
@@ -267,39 +273,37 @@ func markProcessed(ctx context.Context, txID string) error {
 	return redisClient.Set(ctx, key, "1", 24*time.Hour).Err()
 }
 
-func produceSettled(ctx context.Context, w *kafka.Writer, tx *Transaction) {
+func produceSettled(ctx context.Context, w *kafka.Writer, tx *Transaction) error {
 	tx.Status = "SETTLED"
 	data, err := json.Marshal(tx)
 	if err != nil {
-		log.Printf("Failed to marshal settled transaction %s: %v", tx.TransactionID, err)
-		return
+		return fmt.Errorf("marshal settled transaction %s: %w", tx.TransactionID, err)
 	}
 	if err := w.WriteMessages(ctx, kafka.Message{
 		Key:   []byte(tx.SourceAccountID),
 		Value: data,
 	}); err != nil {
-		log.Printf("Failed to produce settled message for %s: %v", tx.TransactionID, err)
-		return
+		return fmt.Errorf("produce settled message for %s: %w", tx.TransactionID, err)
 	}
 	log.Printf("Transaction %s authorized and settled", tx.TransactionID)
+	return nil
 }
 
-func produceFailed(ctx context.Context, w *kafka.Writer, tx *Transaction, reason string) {
+func produceFailed(ctx context.Context, w *kafka.Writer, tx *Transaction, reason string) error {
 	tx.Status = "FAILED"
 	data, err := json.Marshal(map[string]interface{}{
 		"transaction":    tx,
 		"failure_reason": reason,
 	})
 	if err != nil {
-		log.Printf("Failed to marshal failed transaction %s: %v", tx.TransactionID, err)
-		return
+		return fmt.Errorf("marshal failed transaction %s: %w", tx.TransactionID, err)
 	}
 	if err := w.WriteMessages(ctx, kafka.Message{
 		Key:   []byte(tx.SourceAccountID),
 		Value: data,
 	}); err != nil {
-		log.Printf("Failed to produce failed message for %s: %v", tx.TransactionID, err)
-		return
+		return fmt.Errorf("produce failed message for %s: %w", tx.TransactionID, err)
 	}
 	log.Printf("Transaction %s failed: %s", tx.TransactionID, reason)
+	return nil
 }

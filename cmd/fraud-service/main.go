@@ -185,8 +185,11 @@ func main() {
 
 		if writeErr != nil {
 			span.RecordError(writeErr)
-			log.Printf("Error producing message: %v", writeErr)
+			log.Printf("Error producing message for tx %s, committing to avoid reprocess: %v", tx.TransactionID, writeErr)
 			span.End()
+			if err := reader.CommitMessages(ctx, msg); err != nil {
+				log.Printf("Error committing message: %v", err)
+			}
 			continue
 		}
 

@@ -127,7 +127,7 @@ func main() {
 	}()
 
 	msgCh := make(chan kafka.Message, 500)
-	errCh := make(chan error, 1)
+	errCh := make(chan error, 10)
 
 	go func() {
 		defer close(msgCh)
@@ -137,7 +137,11 @@ func main() {
 				if errors.Is(err, context.Canceled) {
 					return
 				}
-				errCh <- err
+				select {
+				case errCh <- err:
+				default:
+					log.Printf("Error fetching message (dropped from errCh): %v", err)
+				}
 				continue
 			}
 			msgCh <- msg
@@ -148,9 +152,8 @@ func main() {
 	const flushInterval = 100 * time.Millisecond
 
 	batch := make([]pendingTx, 0, flushSize)
-	batchTimeout := time.NewTimer(flushInterval)
-	ticker := time.NewTicker(flushInterval)
-	defer ticker.Stop()
+	batchTimer := time.NewTimer(flushInterval)
+	defer batchTimer.Stop()
 
 	flush := func() {
 		if len(batch) == 0 {
@@ -166,12 +169,9 @@ func main() {
 			flush()
 			return
 
-		case <-batchTimeout.C:
+		case <-batchTimer.C:
 			flush()
-			batchTimeout.Reset(flushInterval)
-
-		case <-ticker.C:
-			flush()
+			batchTimer.Reset(flushInterval)
 
 		case err := <-errCh:
 			log.Printf("Error fetching message: %v", err)
@@ -185,15 +185,15 @@ func main() {
 			if err := json.Unmarshal(msg.Value, &tx); err != nil {
 				log.Printf("Error unmarshaling: %v", err)
 				if err := reader.CommitMessages(ctx, msg); err != nil {
-				log.Printf("Error committing messages: %v", err)
-			}
+					log.Printf("Error committing messages: %v", err)
+				}
 				continue
 			}
 			batch = append(batch, pendingTx{msg: msg, tx: tx})
 
 			if len(batch) >= flushSize {
 				flush()
-				batchTimeout.Reset(flushInterval)
+				batchTimer.Reset(flushInterval)
 			}
 		}
 	}
