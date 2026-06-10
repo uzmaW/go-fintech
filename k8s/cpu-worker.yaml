@@ -1,0 +1,73 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cpu-worker
+  namespace: fintech
+  labels:
+    app: cpu-worker
+    app.kubernetes.io/name: cpu-worker
+    app.kubernetes.io/part-of: fintech
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cpu-worker
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: cpu-worker
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+      containers:
+      - name: cpu-worker
+        image: ghcr.io/company/go-fintech/cpu-worker:latest
+        command: ["python", "-m", "cpu_worker"]
+        env:
+        - name: APP_NAME
+          value: "cpu-worker"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "1000m"
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cpu-worker
+  namespace: fintech
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: cpu-worker
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cpu-worker
+  namespace: fintech
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cpu-worker
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70

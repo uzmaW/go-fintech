@@ -1,4 +1,4 @@
-.PHONY: build test run clean tidy lint docker-build docker-push k8s-apply argocd-sync
+.PHONY: build test run clean tidy lint docker-build docker-push k8s-apply argocd-sync test-python lint-python
 
 BINARIES=api-gateway fraud-service authorization-service ledger-processor notification-service settlement-job
 REGISTRY?=ghcr.io/company/go-fintech
@@ -52,10 +52,22 @@ vet:
 security:
 	govulncheck ./...
 
+test-python:
+	@echo "Running Python tests..."
+	cd python/workers && python -m pytest -v
+
+lint-python:
+	@echo "Linting Python code..."
+	cd python/workers && python -m flake8 --max-line-length=120 .
+
 docker-build:
 	@for svc in $(BINARIES); do \
 		echo "Building docker image for $$svc..."; \
 		docker build -t $(REGISTRY)/$$svc:$(TAG) --build-arg SERVICE=$$svc -f Dockerfile .; \
+	done
+	@for svc in cpu-worker io-worker kafka-consumer; do \
+		echo "Building docker image for $$svc..."; \
+		docker build -t $(REGISTRY)/$$svc:$(TAG) -f Dockerfile.python .; \
 	done
 
 docker-push:
@@ -79,6 +91,9 @@ k8s-apply:
 	kubectl apply -f k8s/ledger-processor.yaml
 	kubectl apply -f k8s/notification-service.yaml
 	kubectl apply -f k8s/settlement-job.yaml
+	kubectl apply -f k8s/cpu-worker.yaml
+	kubectl apply -f k8s/io-worker.yaml
+	kubectl apply -f k8s/kafka-consumer.yaml
 	kubectl apply -f k8s/prometheus-rules.yaml
 	kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
 	kubectl create configmap grafana-fintech-dashboard \
@@ -150,7 +165,9 @@ help:
 	@echo "Build & Test:"
 	@echo "  build              - Build all Go binaries"
 	@echo "  test               - Run Go tests with race detection"
+	@echo "  test-python        - Run Python worker tests"
 	@echo "  lint               - Run golangci-lint"
+	@echo "  lint-python        - Run Python linter"
 	@echo "  vet                - Run go vet"
 	@echo "  security           - Run govulncheck"
 	@echo ""
