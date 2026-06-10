@@ -29,9 +29,10 @@ jobs:
       with:
         version: "latest"
     - name: golangci-lint
-      run: |
-        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.12.2
-        golangci-lint run ./...
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+        install-mode: goinstall
 
   test:
     name: Test
